@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# testing
-=======
-
 ### `README.md`
 ```markdown
 # Agile CI Demo (FastAPI)
@@ -21,4 +17,3 @@ make install
 make test
 make run
 # open http://localhost:8000/health
->>>>>>> ddb3958 (Initial agile demo commit)
