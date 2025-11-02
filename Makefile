@@ -17,4 +17,4 @@ test:
 	pytest --cov=src
 
 run:
-	uvicorn src.app:app --reload
+	uvicorn agile_ci_demo.app:app --reload
