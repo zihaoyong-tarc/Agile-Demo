@@ -1,23 +1,15 @@
-"""
-Acceptance & BDD-style tests for the Agile Demo API.
-
-This module demonstrates different styles of Agile testing:
-
-- Scenario-based acceptance tests (docstring Given/When/Then)
-- Negative / edge-case tests
-- Parametrized tests (multiple examples in one test)
-- Property-based tests (many random inputs)
-- BDD-style feature files + step definitions (pytest-bdd)
-"""
-
 from __future__ import annotations
 
 from typing import Dict
 
 import pytest
 from fastapi.testclient import TestClient
+from hypothesis import given as hypothesis_given
+from hypothesis import strategies as st
+from pytest_bdd import given as bdd_given, parsers, scenarios, then as bdd_then, when as bdd_when
 
 from agile_ci_demo.app import app, reset_db
+
 
 # --- Test client fixture -----------------------------------------------------
 
@@ -142,6 +134,26 @@ def test_mark_done_missing_item_returns_404(client: TestClient) -> None:
     assert r.json()["detail"] == "Not found"
 
 
+def test_mark_done_twice_keeps_item_done(client: TestClient) -> None:
+    """
+    Negative-ish test: Marking an item done twice
+
+    Given an item with ID 5 exists
+    When I PATCH /items/5/done twice
+    Then the item remains done and no error occurs
+    """
+    item = {"id": 5, "title": "Double done"}
+    client.post("/items", json=item)
+
+    r1 = client.patch("/items/5/done")
+    assert r1.status_code == 200
+    assert r1.json()["done"] is True
+
+    r2 = client.patch("/items/5/done")
+    assert r2.status_code == 200
+    assert r2.json()["done"] is True
+
+
 # --- 3. Parametrized tests (multiple examples) -------------------------------
 
 
@@ -173,14 +185,9 @@ def test_create_multiple_items(client: TestClient, item_id: int, title: str) -> 
 
 
 # --- 4. Property-based test (many random inputs) -----------------------------
-# Requires: hypothesis
 
 
-from hypothesis import given
-from hypothesis import strategies as st
-
-
-@given(
+@hypothesis_given(
     item_id=st.integers(min_value=1, max_value=100_000),
     title=st.text(min_size=1, max_size=50),
 )
@@ -192,8 +199,7 @@ def test_create_item_with_many_random_inputs(item_id: int, title: str) -> None:
       - Creating the item returns either 201 (first time)
         or 409 (if the ID already exists).
     """
-    # We do NOT use the fixture here so we don't reset DB every time.
-    # Instead we rely on the property: second create with same ID may conflict.
+    # Note: using a fresh client here; we don't reset DB between examples.
     client = TestClient(app)
 
     response = client.post("/items", json={"id": item_id, "title": title})
@@ -206,8 +212,6 @@ def test_create_item_with_many_random_inputs(item_id: int, title: str) -> None:
 #
 # This demonstrates how to connect Gherkin feature files to step functions.
 
-
-from pytest_bdd import given, parsers, scenarios, then, when
 
 # Load all scenarios from the feature file.
 # The path is relative to THIS test file. We assume:
@@ -229,17 +233,20 @@ def context() -> Context:
     return Context()
 
 
-@given("the API is running", target_fixture="api_is_running")
-def api_is_running(client: TestClient, context: Context) -> dict:
+@bdd_given("the API is running", target_fixture="api_is_running")
+def api_is_running(client: TestClient, context: Context) -> Dict[str, object]:
     """
     BDD Given step: ensure we have a client and clean DB.
+
+    The 'target_fixture' argument makes this step available as a fixture
+    named 'api_is_running', which we can then request in When/Then steps.
     """
     # client fixture already reset the DB.
     context.last_response = None
     return {"client": client}
 
 
-@when(parsers.parse('I create an item with id {item_id:d} and title "{title}"'))
+@bdd_when(parsers.parse('I create an item with id {item_id:d} and title "{title}"'))
 def create_item_step(
     api_is_running: Dict[str, object],
     context: Context,
@@ -255,7 +262,7 @@ def create_item_step(
     assert response.status_code == 201
 
 
-@then(
+@bdd_then(
     parsers.parse(
         'the item with id {item_id:d} exists with title "{title}" and not done'
     )
