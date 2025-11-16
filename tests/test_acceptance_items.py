@@ -262,11 +262,7 @@ def create_item_step(
     assert response.status_code == 201
 
 
-@bdd_then(
-    parsers.parse(
-        'the item with id {item_id:d} exists with title "{title}" and not done'
-    )
-)
+@bdd_then(parsers.parse('the item with id {item_id:d} exists with title "{title}" and not done'))
 def item_exists_step(
     api_is_running: Dict[str, object],
     context: Context,
